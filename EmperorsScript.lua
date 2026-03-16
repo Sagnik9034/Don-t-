@@ -2,23 +2,25 @@
 --           EMPEROR'S SCRIPT v3
 --        Built for Delta Mobile Executor
 --   Aimbot | Silent Aim | ESP | Tracers | Chams
+--              Powered by Orion UI
 -- ================================================
+
+local OrionLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/shlexware/Orion/main/source"))()
 
 local Players          = game:GetService("Players")
 local RunService       = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local TweenService     = game:GetService("TweenService")
 local Camera           = workspace.CurrentCamera
 local LocalPlayer      = Players.LocalPlayer
 
 -- ================================================
 -- CLEANUP
 -- ================================================
-if LocalPlayer.PlayerGui:FindFirstChild("EmperorsGUI") then
-    LocalPlayer.PlayerGui.EmperorsGUI:Destroy()
-end
 if workspace:FindFirstChild("EmperorsESP") then
     workspace.EmperorsESP:Destroy()
+end
+if LocalPlayer.PlayerGui:FindFirstChild("EmperorsAimGui") then
+    LocalPlayer.PlayerGui.EmperorsAimGui:Destroy()
 end
 
 -- ================================================
@@ -35,6 +37,552 @@ local Settings = {
     LockOn          = true,
     WallCheck       = true,
     TeamCheck       = true,
+    Prediction      = true,
+    AimbotSmooth    = IsMobile and 0.55 or 0.25,
+    AimbotFOV       = IsMobile and 280  or 200,
+    AimbotPart      = "Head",
+    ShowFOVRing     = true,
+    ESPEnabled      = false,
+    ShowHealthBars  = true,
+    ShowTracers     = true,
+    ShowChams       = true,
+    ShowSnaplines   = false,
+    ShowWeaponLabel = true,
+    ShowDistance    = true,
+    EnemyColor      = Color3.fromRGB(255, 60,  60),
+    TeamColor       = Color3.fromRGB(60,  255, 120),
+    LockedColor     = Color3.fromRGB(255, 200,   0),
+}
+
+-- ================================================
+-- ORION WINDOW
+-- ================================================
+local Window = OrionLib:MakeWindow({
+    Name         = "Emperor's Script v3",
+    HidePremium  = false,
+    SaveConfig   = false,
+    ConfigFolder = "EmperorsScript",
+    IntroEnabled = true,
+    IntroText    = "Emperor's Script v3",
+})
+
+-- ================================================
+-- AIMBOT TAB
+-- ================================================
+local AimTab = Window:MakeTab({
+    Name        = "Aimbot",
+    Icon        = "rbxassetid://4483345998",
+    PremiumOnly = false,
+})
+
+AimTab:AddSection({ Name = "Aimbot" })
+
+AimTab:AddToggle({
+    Name     = "Aimbot",
+    Default  = false,
+    Callback = function(v) Settings.AimbotEnabled = v end,
+})
+
+AimTab:AddToggle({
+    Name     = "Silent Aim",
+    Default  = true,
+    Callback = function(v) Settings.SilentAim = v end,
+})
+
+AimTab:AddToggle({
+    Name     = "Lock-On",
+    Default  = true,
+    Callback = function(v) Settings.LockOn = v end,
+})
+
+AimTab:AddToggle({
+    Name     = "Prediction",
+    Default  = true,
+    Callback = function(v) Settings.Prediction = v end,
+})
+
+AimTab:AddToggle({
+    Name     = "Wall Check",
+    Default  = true,
+    Callback = function(v) Settings.WallCheck = v end,
+})
+
+AimTab:AddToggle({
+    Name     = "Team Check",
+    Default  = true,
+    Callback = function(v) Settings.TeamCheck = v end,
+})
+
+AimTab:AddToggle({
+    Name     = "FOV Ring",
+    Default  = true,
+    Callback = function(v) Settings.ShowFOVRing = v end,
+})
+
+AimTab:AddSlider({
+    Name      = "FOV Size",
+    Min       = 50,
+    Max       = 500,
+    Default   = Settings.AimbotFOV,
+    Color     = Color3.fromRGB(120, 0, 255),
+    Increment = 10,
+    ValueName = "px",
+    Callback  = function(v) Settings.AimbotFOV = v end,
+})
+
+AimTab:AddSlider({
+    Name      = "Smoothness",
+    Min       = 1,
+    Max       = 100,
+    Default   = math.floor(Settings.AimbotSmooth * 100),
+    Color     = Color3.fromRGB(120, 0, 255),
+    Increment = 1,
+    ValueName = "%",
+    Callback  = function(v) Settings.AimbotSmooth = v / 100 end,
+})
+
+AimTab:AddDropdown({
+    Name     = "Aim Part",
+    Default  = "Head",
+    Options  = {"Head", "HumanoidRootPart", "UpperTorso", "LowerTorso"},
+    Callback = function(v) Settings.AimbotPart = v end,
+})
+
+-- ================================================
+-- ESP TAB
+-- ================================================
+local ESPTab = Window:MakeTab({
+    Name        = "ESP",
+    Icon        = "rbxassetid://4483345998",
+    PremiumOnly = false,
+})
+
+ESPTab:AddSection({ Name = "ESP" })
+
+ESPTab:AddToggle({
+    Name     = "ESP",
+    Default  = false,
+    Callback = function(v) Settings.ESPEnabled = v end,
+})
+
+ESPTab:AddToggle({
+    Name     = "Health Bars",
+    Default  = true,
+    Callback = function(v) Settings.ShowHealthBars = v end,
+})
+
+ESPTab:AddToggle({
+    Name     = "Tracers",
+    Default  = true,
+    Callback = function(v) Settings.ShowTracers = v end,
+})
+
+ESPTab:AddToggle({
+    Name     = "Chams",
+    Default  = true,
+    Callback = function(v) Settings.ShowChams = v end,
+})
+
+ESPTab:AddToggle({
+    Name     = "Snaplines",
+    Default  = false,
+    Callback = function(v) Settings.ShowSnaplines = v end,
+})
+
+ESPTab:AddToggle({
+    Name     = "Weapon Label",
+    Default  = true,
+    Callback = function(v) Settings.ShowWeaponLabel = v end,
+})
+
+ESPTab:AddToggle({
+    Name     = "Distance",
+    Default  = true,
+    Callback = function(v) Settings.ShowDistance = v end,
+})
+
+-- ================================================
+-- AIM BUTTON (separate GUI, always visible)
+-- ================================================
+local aimGui = Instance.new("ScreenGui")
+aimGui.Name           = "EmperorsAimGui"
+aimGui.ResetOnSpawn   = false
+aimGui.IgnoreGuiInset = true
+aimGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+aimGui.Parent         = LocalPlayer.PlayerGui
+
+local AimBtnSz     = IsMobile and 100 or 85
+local AimActive    = false
+local LockedTarget = nil
+
+local AimBtn = Instance.new("TextButton", aimGui)
+AimBtn.Size             = UDim2.new(0, AimBtnSz, 0, AimBtnSz)
+AimBtn.Position         = UDim2.new(1, -(AimBtnSz + 14), 1, -(AimBtnSz + 90))
+AimBtn.BackgroundColor3 = Color3.fromRGB(80, 0, 180)
+AimBtn.Text             = "AIM"
+AimBtn.TextColor3       = Color3.new(1, 1, 1)
+AimBtn.TextSize         = IsMobile and 18 or 14
+AimBtn.Font             = Enum.Font.GothamBold
+AimBtn.BorderSizePixel  = 0
+AimBtn.ZIndex           = 10
+AimBtn.Active           = true
+Instance.new("UICorner", AimBtn).CornerRadius = UDim.new(1, 0)
+local aimStroke = Instance.new("UIStroke", AimBtn)
+aimStroke.Color     = Color3.fromRGB(160, 60, 255)
+aimStroke.Thickness = 2
+
+-- Draggable AIM button
+do
+    local dragging, dragStart, startPos = false, nil, nil
+    AimBtn.InputBegan:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.Touch
+        or inp.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging  = true
+            dragStart = inp.Position
+            startPos  = AimBtn.Position
+        end
+    end)
+    AimBtn.InputChanged:Connect(function(inp)
+        if dragging and (inp.UserInputType == Enum.UserInputType.Touch
+            or inp.UserInputType == Enum.UserInputType.MouseMovement) then
+            local d = inp.Position - dragStart
+            AimBtn.Position = UDim2.new(
+                startPos.X.Scale, startPos.X.Offset + d.X,
+                startPos.Y.Scale, startPos.Y.Offset + d.Y)
+        end
+    end)
+    AimBtn.InputEnded:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.Touch
+        or inp.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+end
+
+AimBtn.MouseButton1Down:Connect(function()
+    AimActive = true
+    if not Settings.LockOn then LockedTarget = nil end
+    Camera.CameraType       = Enum.CameraType.Scriptable
+    AimBtn.BackgroundColor3 = Color3.fromRGB(150, 0, 255)
+    aimStroke.Color         = Color3.fromRGB(230, 130, 255)
+end)
+AimBtn.MouseButton1Up:Connect(function()
+    AimActive = false
+    if not Settings.LockOn then LockedTarget = nil end
+    Camera.CameraType       = Enum.CameraType.Custom
+    AimBtn.BackgroundColor3 = Color3.fromRGB(80, 0, 180)
+    aimStroke.Color         = Color3.fromRGB(160, 60, 255)
+end)
+
+-- ================================================
+-- FOV RING + LOCK DOT
+-- ================================================
+local FOVRing = Instance.new("Frame", aimGui)
+FOVRing.BackgroundTransparency = 1
+FOVRing.BorderSizePixel        = 0
+FOVRing.ZIndex                 = 2
+FOVRing.AnchorPoint            = Vector2.new(0.5, 0.5)
+FOVRing.Position               = UDim2.new(0.5, 0, 0.5, 0)
+local ringImg = Instance.new("ImageLabel", FOVRing)
+ringImg.BackgroundTransparency = 1
+ringImg.Image                  = "rbxassetid://3570695787"
+ringImg.ImageColor3            = Color3.fromRGB(160, 60, 255)
+ringImg.ImageTransparency      = 0.3
+ringImg.ScaleType              = Enum.ScaleType.Stretch
+ringImg.Size                   = UDim2.new(1, 0, 1, 0)
+ringImg.ZIndex                 = 2
+
+local LockDot = Instance.new("Frame", aimGui)
+LockDot.Size             = UDim2.new(0, 14, 0, 14)
+LockDot.AnchorPoint      = Vector2.new(0.5, 0.5)
+LockDot.BackgroundColor3 = Color3.fromRGB(255, 200, 0)
+LockDot.BorderSizePixel  = 0
+LockDot.ZIndex           = 15
+LockDot.Visible          = false
+Instance.new("UICorner", LockDot).CornerRadius = UDim.new(1, 0)
+local lockStroke = Instance.new("UIStroke", LockDot)
+lockStroke.Color     = Color3.fromRGB(255, 255, 100)
+lockStroke.Thickness = 2
+
+-- ================================================
+-- HELPERS
+-- ================================================
+local function IsAlive(p)
+    local c = p.Character
+    if not c then return false end
+    local h = c:FindFirstChildOfClass("Humanoid")
+    return h and h.Health > 0
+end
+
+local function SameTeam(p)
+    return p.Team ~= nil and p.Team == LocalPlayer.Team
+end
+
+local function HasWall(origin, target)
+    local params = RaycastParams.new()
+    params.FilterDescendantsInstances = {LocalPlayer.Character}
+    params.FilterType                 = Enum.RaycastFilterType.Exclude
+    local result = workspace:Raycast(origin, target - origin, params)
+    if not result then return false end
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character
+           and result.Instance:IsDescendantOf(plr.Character) then
+            return false
+        end
+    end
+    return true
+end
+
+local function ToScreen(pos)
+    local v, on = Camera:WorldToViewportPoint(pos)
+    return Vector2.new(v.X, v.Y), on, v.Z
+end
+
+local velHistory = {}
+local function SmoothedVel(player, raw)
+    if not velHistory[player] then velHistory[player] = {} end
+    local h = velHistory[player]
+    table.insert(h, raw)
+    if #h > 4 then table.remove(h, 1) end
+    local sum = Vector3.new(0, 0, 0)
+    for _, v in ipairs(h) do sum = sum + v end
+    return sum / #h
+end
+
+local function PredictedPos(player, part)
+    if not Settings.Prediction then return part.Position end
+    local rawVel = part.AssemblyLinearVelocity or Vector3.new(0, 0, 0)
+    local vel    = SmoothedVel(player, rawVel)
+    local dist   = (Camera.CFrame.Position - part.Position).Magnitude
+    local lag    = (dist / 400) + 0.065
+    return part.Position + vel * lag
+end
+
+local function GetClosest()
+    local best, bestDist = nil, Settings.AimbotFOV
+    local mid = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p == LocalPlayer or not IsAlive(p) then continue end
+        if Settings.TeamCheck and SameTeam(p) then continue end
+        local part = p.Character:FindFirstChild(Settings.AimbotPart)
+                  or p.Character:FindFirstChild("HumanoidRootPart")
+        if not part then continue end
+        local aimPos = PredictedPos(p, part)
+        local sp, on = ToScreen(aimPos)
+        if not on then continue end
+        if Settings.WallCheck and HasWall(Camera.CFrame.Position, aimPos) then continue end
+        local d = (sp - mid).Magnitude
+        if d < bestDist then bestDist = d; best = p end
+    end
+    return best
+end
+
+-- ================================================
+-- SILENT AIM HOOK
+-- ================================================
+local SilentTarget = nil
+
+local _oldFindPart = workspace.FindPartOnRayWithWhitelist
+if _oldFindPart then
+    workspace.FindPartOnRayWithWhitelist = function(ws, ray, wl, ...)
+        if Settings.AimbotEnabled and Settings.SilentAim and SilentTarget then
+            local part = SilentTarget.Character
+                and (SilentTarget.Character:FindFirstChild(Settings.AimbotPart)
+                     or SilentTarget.Character:FindFirstChild("HumanoidRootPart"))
+            if part then
+                local aimPos = PredictedPos(SilentTarget, part)
+                local newDir = (aimPos - ray.Origin).Unit * ray.Direction.Magnitude
+                ray = Ray.new(ray.Origin, newDir)
+            end
+        end
+        return _oldFindPart(ws, ray, wl, ...)
+    end
+end
+
+-- ================================================
+-- ESP
+-- ================================================
+local ESPFolder = Instance.new("Folder", workspace)
+ESPFolder.Name  = "EmperorsESP"
+local ESPCache  = {}
+
+local function GetWeapon(char)
+    local tool = char and char:FindFirstChildOfClass("Tool")
+    return tool and tool.Name or nil
+end
+
+local function BuildESP(player)
+    local char = player.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then return nil end
+
+    local color = SameTeam(player) and Settings.TeamColor or Settings.EnemyColor
+    local o     = {}
+
+    local hl = Instance.new("Highlight", ESPFolder)
+    hl.Adornee             = char
+    hl.OutlineColor        = color
+    hl.FillTransparency    = 0.82
+    hl.OutlineTransparency = 0
+    hl.FillColor           = color
+    o.Highlight            = hl
+
+    local nameBB = Instance.new("BillboardGui", ESPFolder)
+    nameBB.Adornee      = root
+    nameBB.AlwaysOnTop  = true
+    nameBB.ResetOnSpawn = false
+    nameBB.Size         = UDim2.new(0, 160, 0, 40)
+    nameBB.StudsOffset  = Vector3.new(0, 3.8, 0)
+
+    local nameLbl = Instance.new("TextLabel", nameBB)
+    nameLbl.Size                   = UDim2.new(1, 0, 0.55, 0)
+    nameLbl.BackgroundTransparency = 1
+    nameLbl.Text                   = player.DisplayName
+    nameLbl.TextColor3             = color
+    nameLbl.TextSize               = 14
+    nameLbl.Font                   = Enum.Font.GothamBold
+    nameLbl.TextStrokeTransparency = 0
+    nameLbl.TextStrokeColor3       = Color3.new(0, 0, 0)
+
+    local weapLbl = Instance.new("TextLabel", nameBB)
+    weapLbl.Size                   = UDim2.new(1, 0, 0.45, 0)
+    weapLbl.Position               = UDim2.new(0, 0, 0.55, 0)
+    weapLbl.BackgroundTransparency = 1
+    weapLbl.TextColor3             = Color3.fromRGB(255, 210, 80)
+    weapLbl.TextSize               = 11
+    weapLbl.Font                   = Enum.Font.Gotham
+    weapLbl.TextStrokeTransparency = 0
+    weapLbl.TextStrokeColor3       = Color3.new(0, 0, 0)
+    weapLbl.Text                   = ""
+
+    o.NameBB  = nameBB
+    o.NameLbl = nameLbl
+    o.WeapLbl = weapLbl
+
+    local distBB = Instance.new("BillboardGui", ESPFolder)
+    distBB.Adornee      = root
+    distBB.AlwaysOnTop  = true
+    distBB.ResetOnSpawn = false
+    distBB.Size         = UDim2.new(0, 120, 0, 18)
+    distBB.StudsOffset  = Vector3.new(0, -3.6, 0)
+    local distLbl = Instance.new("TextLabel", distBB)
+    distLbl.Size                   = UDim2.new(1, 0, 1, 0)
+    distLbl.BackgroundTransparency = 1
+    distLbl.TextColor3             = Color3.fromRGB(200, 200, 200)
+    distLbl.TextSize               = 11
+    distLbl.Font                   = Enum.Font.Gotham
+    distLbl.TextStrokeTransparency = 0
+    distLbl.TextStrokeColor3       = Color3.new(0, 0, 0)
+    o.DistBB  = distBB
+    o.DistLbl = distLbl
+
+    local hpBB = Instance.new("BillboardGui", ESPFolder)
+    hpBB.Adornee      = root
+    hpBB.AlwaysOnTop  = true
+    hpBB.ResetOnSpawn = false
+    hpBB.Size         = UDim2.new(0, 7, 0, 44)
+    hpBB.StudsOffset  = Vector3.new(-2.4, 0, 0)
+
+    local hpBg = Instance.new("Frame", hpBB)
+    hpBg.Size             = UDim2.new(1, 0, 1, 0)
+    hpBg.BackgroundColor3 = Color3.fromRGB(22, 22, 22)
+    hpBg.BorderSizePixel  = 0
+    Instance.new("UICorner", hpBg).CornerRadius = UDim.new(0, 4)
+
+    local hpFill = Instance.new("Frame", hpBg)
+    hpFill.AnchorPoint      = Vector2.new(0, 1)
+    hpFill.Position         = UDim2.new(0, 0, 1, 0)
+    hpFill.Size             = UDim2.new(1, 0, 1, 0)
+    hpFill.BackgroundColor3 = Color3.fromRGB(60, 220, 80)
+    hpFill.BorderSizePixel  = 0
+    Instance.new("UICorner", hpFill).CornerRadius = UDim.new(0, 4)
+    o.HpBB   = hpBB
+    o.HpFill = hpFill
+
+    local line = Drawing.new("Line")
+    line.Visible      = false
+    line.Thickness    = IsMobile and 1.5 or 1
+    line.Color        = Settings.EnemyColor
+    line.Transparency = 0.2
+    o.TracerLine      = line
+
+    local snap = Drawing.new("Line")
+    snap.Visible      = false
+    snap.Thickness    = 1
+    snap.Color        = Color3.fromRGB(255, 255, 100)
+    snap.Transparency = 0.4
+    o.SnapLine        = snap
+
+    o.Root = root
+    o.Char = char
+    ESPCache[player] = o
+    return o
+end
+
+local function RemoveESP(player)
+    local o = ESPCache[player]
+    if not o then return end
+    if o.Highlight  then o.Highlight:Destroy()  end
+    if o.NameBB     then o.NameBB:Destroy()     end
+    if o.DistBB     then o.DistBB:Destroy()     end
+    if o.HpBB       then o.HpBB:Destroy()       end
+    if o.TracerLine then o.TracerLine:Remove()  end
+    if o.SnapLine   then o.SnapLine:Remove()    end
+    ESPCache[player]   = nil
+    velHistory[player] = nil
+end
+
+Players.PlayerRemoving:Connect(RemoveESP)
+
+-- ================================================
+-- MAIN LOOP
+-- ================================================
+RunService.RenderStepped:Connect(function()
+
+    local mid     = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    local screenH = Camera.ViewportSize.Y
+    local tracerO = Vector2.new(mid.X, screenH)
+
+    local fovD = Settings.AimbotFOV * 2
+    FOVRing.Size    = UDim2.new(0, fovD, 0, fovD)
+    FOVRing.Visible = Settings.ShowFOVRing and Settings.AimbotEnabled
+    ringImg.ImageColor3 = AimActive
+        and Color3.fromRGB(255, 200, 0) or Color3.fromRGB(160, 60, 255)
+
+    if Settings.AimbotEnabled and AimActive then
+
+        if Settings.LockOn and LockedTarget then
+            if not IsAlive(LockedTarget) then
+                LockedTarget = nil
+            else
+                local part = LockedTarget.Character:FindFirstChild(Settings.AimbotPart)
+                          or LockedTarget.Character:FindFirstChild("HumanoidRootPart")
+                if part then
+                    local sp, on = ToScreen(part.Position)
+                    if not on or (sp - mid).Magnitude > Settings.AimbotFOV * 1.6 then
+                        LockedTarget = nil
+                    end
+                end
+            end
+        end
+
+        if not LockedTarget then LockedTarget = GetClosest() end
+        SilentTarget = LockedTarget
+
+        if LockedTarget and LockedTarget.Character then
+            local part = LockedTarget.Character:FindFirstChild(Settings.AimbotPart)
+                      or LockedTarget.Character:FindFirstChild("HumanoidRootPart")
+            if part then
+                local aimPos = PredictedPos(LockedTarget, part)
+
+                if not Settings.SilentAim then
+                    if Camera.CameraType ~= Enum.CameraType.Scriptable then
+                        Camera.CameraType = Enum.CameraType.Scriptable
+                    end
+                    local dist = (Camera.CFrame.Position - aimPos).Magnitude
+                    local snap = math.clamp(
+                        Settings.AimbotSmooth + (1 / math.max(dist, 1)) * 3,
+                        Settings.AimbotSmooth, 0.    TeamCheck       = true,
     Prediction      = true,
     AimbotSmooth    = IsMobile and 0.55 or 0.25,
     AimbotFOV       = IsMobile and 280  or 200,
