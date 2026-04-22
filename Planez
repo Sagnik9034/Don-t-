@@ -1,39 +1,110 @@
--- Emperor Build Reconstructor
--- Optimized for Mobile (Delta/Fluxus)
-local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/shlexware/Rayfield/main/source"))()
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local Window = Library:CreateWindow({
-    Name = "EMPEROR: BUILD RECONSTRUCTOR",
-    LoadingTitle = "Initializing Systems...",
-    LoadingSubtitle = "by Sagnik",
-    ConfigurationSaving = { Enabled = false }
+local Window = Rayfield:CreateWindow({
+   Name = "EMPEROR | Plane Crazy Reconstructor",
+   LoadingTitle = "Booting Emperor Systems...",
+   LoadingSubtitle = "Created for Sagnik",
+   ConfigurationSaving = {
+      Enabled = false
+   },
+   KeySystem = false, 
 })
 
--- Theme Customization (Purple & Black)
--- Note: Rayfield themes are preset, but we can customize individual elements
-local MainTab = Window:CreateTab("Build Tools", 4483362458)
+-- Purple & Black Aesthetics
+local MainTab = Window:CreateTab("Main Console", 4483362458) 
+
 local TargetPlayer = ""
-local ScannedData = {}
+local BuildData = {}
+local GhostFolder = Instance.new("Folder", workspace)
+GhostFolder.Name = "Emperor_Ghost_Build"
 
--- 1. TARGET INPUT
+-- 1. Input for Target
 MainTab:CreateInput({
-    Name = "Target Username",
-    PlaceholderText = "Enter Player Name",
-    RemoveTextAfterFocusLost = false,
-    Callback = function(Text)
-        TargetPlayer = Text
-    end,
+   Name = "Target Username",
+   PlaceholderText = "Type Name Here",
+   RemoveTextAfterFocusLost = false,
+   Callback = function(Text)
+      TargetPlayer = Text
+   end,
 })
 
--- 2. SCANNING LOGIC (Includes Attribute Capture)
+-- 2. Scan & Extract (With Names & Configs)
 MainTab:CreateButton({
-    Name = "Scan & Extract Data",
-    Callback = function()
-        local folder = workspace:FindFirstChild(TargetPlayer .. " Aircraft")
-        if not folder then 
-            Library:Notify({Title = "Error", Content = "Target build not found!", Duration = 5})
-            return 
-        end
+   Name = "Scan & Extract Blueprint",
+   Callback = function()
+      local aircraft = workspace:FindFirstChild(TargetPlayer .. " Aircraft")
+      if not aircraft then
+         Rayfield:Notify({Title = "Error", Content = "Target build not found!", Duration = 5})
+         return
+      end
+
+      BuildData = {}
+      GhostFolder:ClearAllChildren()
+
+      for _, part in pairs(aircraft:GetDescendants()) do
+         if part:IsA("BasePart") then
+            -- Store Data
+            local info = {
+               Name = part.Name,
+               CF = part.CFrame,
+               Color = part.Color,
+               Attributes = part:GetAttributes() -- Captures motor/logic configs
+            }
+            table.insert(BuildData, info)
+
+            -- Create Ghost Block with Label
+            local ghost = Instance.new("Part", GhostFolder)
+            ghost.Size = part.Size
+            ghost.CFrame = part.CFrame
+            ghost.Color = Color3.fromRGB(138, 43, 226) -- Purple Ghost
+            ghost.Transparency = 0.7
+            ghost.Anchored = true
+            ghost.CanCollide = false
+
+            -- Add Floating Name Label
+            local bill = Instance.new("BillboardGui", ghost)
+            bill.Size = UDim2.new(0, 50, 0, 20)
+            bill.AlwaysOnTop = true
+            local lab = Instance.new("TextLabel", bill)
+            lab.Size = UDim2.new(1, 0, 1, 0)
+            lab.Text = part.Name
+            lab.BackgroundTransparency = 1
+            lab.TextColor3 = Color3.new(1, 1, 1)
+            lab.TextScaled = true
+         end
+      end
+      Rayfield:Notify({Title = "Success", Content = "Captured " .. #BuildData .. " blocks!", Duration = 5})
+   end,
+})
+
+-- 3. Layered Autobuild (20 blocks per second)
+MainTab:CreateButton({
+   Name = "Execute Layered Build",
+   Callback = function()
+      if #BuildData == 0 then return end
+
+      -- Sort by Y axis (Lowest to Highest)
+      table.sort(BuildData, function(a, b)
+         return a.CF.p.Y < b.CF.p.Y
+      end)
+
+      Rayfield:Notify({Title = "Status", Content = "Building at 20 blocks/sec...", Duration = 3})
+
+      for _, data in ipairs(BuildData) do
+         -- FIRE THE BUILD REMOTE
+         -- NOTE: Plane Crazy Remote Names change often. Use a Remote Spy if this doesn't place.
+         local remote = game:GetService("ReplicatedStorage"):FindFirstChild("PlaceBlock") 
+         if remote then
+            remote:FireServer(data.Name, data.CF, data.Color, data.Attributes)
+         end
+         
+         task.wait(0.05) -- This maintains the 20 blocks per second speed
+      end
+   end,
+})
+
+-- Toggle for UI Visibility (Useful for Mobile)
+MainTab:CreateLabel("Press Right-Control or use the UI Toggle to hide.")
         
         ScannedData = {}
         for _, part in pairs(folder:GetDescendants()) do
