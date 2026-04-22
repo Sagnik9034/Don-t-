@@ -1,0 +1,82 @@
+-- Emperor Build Reconstructor
+-- Optimized for Mobile (Delta/Fluxus)
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/shlexware/Rayfield/main/source"))()
+
+local Window = Library:CreateWindow({
+    Name = "EMPEROR: BUILD RECONSTRUCTOR",
+    LoadingTitle = "Initializing Systems...",
+    LoadingSubtitle = "by Sagnik",
+    ConfigurationSaving = { Enabled = false }
+})
+
+-- Theme Customization (Purple & Black)
+-- Note: Rayfield themes are preset, but we can customize individual elements
+local MainTab = Window:CreateTab("Build Tools", 4483362458)
+local TargetPlayer = ""
+local ScannedData = {}
+
+-- 1. TARGET INPUT
+MainTab:CreateInput({
+    Name = "Target Username",
+    PlaceholderText = "Enter Player Name",
+    RemoveTextAfterFocusLost = false,
+    Callback = function(Text)
+        TargetPlayer = Text
+    end,
+})
+
+-- 2. SCANNING LOGIC (Includes Attribute Capture)
+MainTab:CreateButton({
+    Name = "Scan & Extract Data",
+    Callback = function()
+        local folder = workspace:FindFirstChild(TargetPlayer .. " Aircraft")
+        if not folder then 
+            Library:Notify({Title = "Error", Content = "Target build not found!", Duration = 5})
+            return 
+        end
+        
+        ScannedData = {}
+        for _, part in pairs(folder:GetDescendants()) do
+            if part:IsA("BasePart") then
+                -- Capture physical and configurable data (Attributes)
+                local blockInfo = {
+                    Name = part.Name,
+                    CFrame = part.CFrame,
+                    Color = part.Color,
+                    Material = part.Material,
+                    Attributes = part:GetAttributes() -- Grabs motor speeds/logic binds if public
+                }
+                table.insert(ScannedData, blockInfo)
+            end
+        end
+        Library:Notify({Title = "Success", Content = "Captured " .. #ScannedData .. " blocks.", Duration = 5})
+    end,
+})
+
+-- 3. AUTOBUILDER (Layer-by-Layer at 20 bps)
+MainTab:CreateButton({
+    Name = "Start Autobuild (Layered)",
+    Callback = function()
+        if #ScannedData == 0 then return end
+        
+        -- Sort data by Height (Y-axis)
+        table.sort(ScannedData, function(a, b)
+            return a.CFrame.p.Y < b.CFrame.p.Y
+        end)
+
+        Library:Notify({Title = "Building", Content = "Executing Layer-by-Layer build...", Duration = 3})
+
+        for i, data in ipairs(ScannedData) do
+            -- PLACEHOLDER: The building remote varies by Plane Crazy version.
+            -- You will need to find the current RemoteEvent name (usually in ReplicatedStorage)
+            -- Example: game:GetService("ReplicatedStorage").PlaceBlock:FireServer(data.Name, data.CFrame, data.Color, data.Attributes)
+            
+            print("Placing: " .. data.Name .. " at layer " .. math.floor(data.CFrame.p.Y))
+            
+            -- Speed Control: 20 blocks per second = 0.05s delay
+            task.wait(0.05) 
+        end
+    end,
+})
+
+MainTab:CreateLabel("Current Speed: 20 Blocks/Sec")
